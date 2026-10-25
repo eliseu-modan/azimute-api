@@ -1,0 +1,741 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  SELLER
+  DEVELOPER
+}
+
+enum LeadStatus {
+  NEW
+  FIRST_CONTACT
+  CONTACTED
+  QUALIFICATION
+  SURVEY
+  PROPOSAL
+  NEGOTIATION
+  APPROVED
+  REJECTED
+  LOST
+  CLIENT
+  // Legacy values retained during migration rollout.
+  OPEN
+  WON
+}
+
+enum ActivityType {
+  CALL
+  WHATSAPP
+  EMAIL
+  MEETING
+  NOTE
+  FOLLOW_UP
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  VIEWED
+  NEGOTIATING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SurveyStatus {
+  DRAFT
+  COMPLETED
+}
+
+enum RequirementPriority {
+  MUST_HAVE
+  SHOULD_HAVE
+  COULD_HAVE
+  WONT_HAVE
+}
+
+enum RequirementType {
+  FUNCTIONAL
+  NON_FUNCTIONAL
+  INTEGRATION
+  SECURITY
+  UX_UI
+  INFRASTRUCTURE
+}
+
+enum RequirementStatus {
+  BACKLOG
+  ANALYSIS
+  APPROVED
+  DEVELOPMENT
+  TEST
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum FollowUpType {
+  CALL
+  MEETING
+  WHATSAPP
+  EMAIL
+  FOLLOW_UP
+  TASK
+}
+
+enum FollowUpStatus {
+  OPEN
+  COMPLETED
+  RESCHEDULED
+  CANCELLED
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  DELIVERED
+  CANCELLED
+}
+
+enum ProposalPhase {
+  PHASE_1
+  PHASE_2
+  PHASE_3
+}
+
+model Workspace {
+  id             String              @id @default(uuid())
+  name           String
+  slug           String              @unique
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  memberships    Membership[]
+  sessions       Session[]
+  companies      Company[]
+  pipelineStages PipelineStage[]
+  leads          Lead[]
+  surveys        RequirementSurvey[]
+  requirements   Requirement[]
+  proposals      Proposal[]
+  projects       Project[]
+  tasks          Task[]
+  followUps      FollowUp[]
+  files          StoredFile[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  settings       WorkspaceSettings?
+  leadSources    LeadSource[]
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String
+  key         String           @unique
+  memberships Membership[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  key         String           @unique
+  description String?
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model Membership {
+  id          String       @id @default(uuid())
+  userId      String
+  workspaceId String
+  roleId      String
+  status      RecordStatus @default(ACTIVE)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role        Role         @relation(fields: [roleId], references: [id])
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId, roleId])
+}
+
+model Session {
+  id          String    @id @default(uuid())
+  tokenHash   String    @unique
+  userId      String
+  workspaceId String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model User {
+  id       String       @id @default(uuid())
+  name     String
+  email    String       @unique
+  password String
+  role     UserRole     @default(SELLER)
+  status   RecordStatus @default(ACTIVE)
+
+  leads            Lead[]
+  activities       Activity[]
+  proposals        Proposal[]
+  memberships      Membership[]
+  sessions         Session[]
+  assignedTasks    Task[]         @relation("TaskAssignee")
+  createdFollowUps FollowUp[]     @relation("FollowUpCreator")
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Company {
+  id              String  @id @default(uuid())
+  name            String
+  document        String?
+  segment         String?
+  website         String?
+  instagram       String?
+  phone           String?
+  email           String?
+  city            String?
+  state           String?
+  notes           String?
+  workspaceId     String  @default("default")
+  legalName       String?
+  tradeName       String?
+  yearsInBusiness Int?
+  employeeCount   Int?
+
+  contacts  Contact[]
+  leads     Lead[]
+  workspace Workspace           @relation(fields: [workspaceId], references: [id])
+  projects  Project[]
+  surveys   RequirementSurvey[]
+  followUps FollowUp[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("companies")
+}
+
+model Contact {
+  id        String @id @default(uuid())
+  companyId String
+
+  name     String
+  role     String?
+  phone    String?
+  email    String?
+  whatsapp String?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  leads Lead[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("contacts")
+}
+
+model PipelineStage {
+  id          String    @id @default(uuid())
+  name        String
+  order       Int
+  color       String?
+  workspaceId String    @default("default")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  leads Lead[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId, order])
+  @@map("pipeline_stages")
+}
+
+model Lead {
+  id             String     @id @default(uuid())
+  companyId      String
+  contactId      String?
+  assignedTo     String
+  stageId        String
+  source         String?
+  score          Int        @default(0)
+  status         LeadStatus @default(NEW)
+  estimatedValue Decimal?   @db.Decimal(10, 2)
+  notes          String?
+  workspaceId    String     @default("default")
+  name           String?
+  phone          String?
+  whatsapp       String?
+  email          String?
+  city           String?
+  state          String?
+  website        String?
+  instagram      String?
+  lastContactAt  DateTime?
+  nextContactAt  DateTime?
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  contact Contact? @relation(fields: [contactId], references: [id])
+
+  assignedUser User @relation(fields: [assignedTo], references: [id])
+
+  stage PipelineStage @relation(fields: [stageId], references: [id])
+
+  activities Activity[]
+  proposals  Proposal[]
+  surveys    RequirementSurvey[]
+  followUps  FollowUp[]
+  projects   Project[]
+  files      StoredFile[]
+  auditLogs  AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([assignedTo])
+  @@index([stageId])
+  @@map("leads")
+}
+
+model Activity {
+  id          String       @id @default(uuid())
+  leadId      String
+  userId      String
+  type        ActivityType
+  title       String
+  description String?
+  scheduledAt DateTime?
+  completedAt DateTime?
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([scheduledAt])
+  @@map("activities")
+}
+
+model Proposal {
+  id           String         @id @default(uuid())
+  leadId       String
+  createdBy    String
+  status       ProposalStatus @default(DRAFT)
+  value        Decimal        @db.Decimal(10, 2)
+  description  String?
+  validUntil   DateTime?
+  sentAt       DateTime?
+  acceptedAt   DateTime?
+  workspaceId  String         @default("default")
+  problem      String?
+  solution     String?
+  scope        String?
+  deliverables String?
+  schedule     String?
+  paymentTerms String?
+  notes        String?
+  project      Project?
+  items        ProposalItem[]
+  files        StoredFile[]
+  auditLogs    AuditLog[]
+
+  lead      Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  creator User @relation(fields: [createdBy], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([workspaceId, status])
+  @@map("proposals")
+}
+
+model RequirementSurvey {
+  id                    String                 @id @default(uuid())
+  workspaceId           String
+  leadId                String
+  companyId             String?
+  status                SurveyStatus           @default(DRAFT)
+  completedAt           DateTime?
+  notes                 String?
+  workspace             Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead                  Lead                   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  answers               SurveyAnswer[]
+  problems              Problem[]
+  objectives            Objective[]
+  featureSelections     FeatureSelection[]
+  integrations          Integration[]
+  marketingRequirements MarketingRequirement[]
+  brandAssets           BrandAsset[]
+  contentRequirements   ContentRequirement[]
+  securityRequirements  SecurityRequirement[]
+  futureRequirements    FutureRequirement[]
+  successMetrics        SuccessMetric[]
+  budget                Budget?
+  diagnosis             DeveloperDiagnosis?
+  requirements          Requirement[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  company               Company?               @relation(fields: [companyId], references: [id])
+  storedFiles           StoredFile[]
+
+  @@index([workspaceId, status])
+  @@index([leadId])
+}
+
+model SurveyAnswer {
+  id       String            @id @default(uuid())
+  surveyId String
+  section  String
+  question String
+  answer   String?
+  survey   RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique([surveyId, section, question])
+}
+
+model Problem {
+  id          String            @id @default(uuid())
+  surveyId    String
+  description String
+  impact      String?
+  survey      RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model Objective {
+  id          String            @id @default(uuid())
+  surveyId    String
+  description String
+  priority    String?
+  survey      RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model FeatureSelection {
+  id          String            @id @default(uuid())
+  surveyId    String
+  name        String
+  description String?
+  selected    Boolean           @default(true)
+  survey      RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model Integration {
+  id       String            @id @default(uuid())
+  surveyId String
+  name     String
+  details  String?
+  survey   RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model MarketingRequirement {
+  id       String            @id @default(uuid())
+  surveyId String
+  channels String?
+  audience String?
+  goals    String?
+  survey   RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model BrandAsset {
+  id       String            @id @default(uuid())
+  surveyId String
+  name     String
+  fileId   String?
+  notes    String?
+  survey   RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model ContentRequirement {
+  id          String            @id @default(uuid())
+  surveyId    String
+  contentType String
+  description String?
+  owner       String?
+  survey      RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model SecurityRequirement {
+  id          String            @id @default(uuid())
+  surveyId    String
+  description String
+  priority    String?
+  survey      RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model FutureRequirement {
+  id          String            @id @default(uuid())
+  surveyId    String
+  description String
+  horizon     String?
+  survey      RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model SuccessMetric {
+  id       String            @id @default(uuid())
+  surveyId String
+  name     String
+  target   String?
+  survey   RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model Budget {
+  id       String            @id @default(uuid())
+  surveyId String            @unique
+  minimum  Decimal?          @db.Decimal(12, 2)
+  maximum  Decimal?          @db.Decimal(12, 2)
+  currency String            @default("BRL")
+  timeline String?
+  survey   RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+}
+
+model DeveloperDiagnosis {
+  id             String            @id @default(uuid())
+  surveyId       String            @unique
+  diagnosis      String
+  technicalNotes String?
+  estimatedHours Int?
+  survey         RequirementSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model Requirement {
+  id             String              @id @default(uuid())
+  workspaceId    String
+  surveyId       String?
+  projectId      String?
+  name           String
+  description    String?
+  category       String?
+  type           RequirementType
+  priority       RequirementPriority @default(SHOULD_HAVE)
+  status         RequirementStatus   @default(BACKLOG)
+  complexity     String?
+  estimatedHours Decimal?            @db.Decimal(8, 2)
+  phase          String?
+  dependencies   String?
+  notes          String?
+  suggested      Boolean             @default(false)
+  approvedAt     DateTime?
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  survey         RequirementSurvey?  @relation(fields: [surveyId], references: [id])
+  project        Project?            @relation(fields: [projectId], references: [id])
+  tasks          Task[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  storedFiles    StoredFile[]
+
+  @@index([workspaceId, status, priority])
+}
+
+model ProposalItem {
+  id          String        @id @default(uuid())
+  proposalId  String
+  name        String
+  description String?
+  phase       ProposalPhase @default(PHASE_1)
+  quantity    Decimal       @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal       @db.Decimal(12, 2)
+  proposal    Proposal      @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id           String        @id @default(uuid())
+  workspaceId  String
+  proposalId   String?       @unique
+  companyId    String
+  leadId       String?
+  name         String
+  description  String?
+  ownerId      String?
+  value        Decimal?      @db.Decimal(12, 2)
+  dueAt        DateTime?
+  status       ProjectStatus @default(PLANNING)
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proposal     Proposal?     @relation(fields: [proposalId], references: [id])
+  company      Company       @relation(fields: [companyId], references: [id])
+  lead         Lead?         @relation(fields: [leadId], references: [id])
+  requirements Requirement[]
+  tasks        Task[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  storedFiles  StoredFile[]
+
+  @@index([workspaceId, status])
+}
+
+model Task {
+  id             String       @id @default(uuid())
+  workspaceId    String
+  projectId      String
+  requirementId  String?
+  title          String
+  description    String?
+  assigneeId     String?
+  priority       TaskPriority @default(MEDIUM)
+  status         TaskStatus   @default(TODO)
+  dueAt          DateTime?
+  estimatedHours Decimal?     @db.Decimal(8, 2)
+  actualHours    Decimal?     @db.Decimal(8, 2)
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirement    Requirement? @relation(fields: [requirementId], references: [id])
+  assignee       User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([workspaceId, status, dueAt])
+}
+
+model FollowUp {
+  id          String         @id @default(uuid())
+  workspaceId String
+  leadId      String?
+  companyId   String?
+  createdById String
+  type        FollowUpType
+  status      FollowUpStatus @default(OPEN)
+  scheduledAt DateTime
+  description String?
+  completedAt DateTime?
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead        Lead?          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  company     Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator     User           @relation("FollowUpCreator", fields: [createdById], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([workspaceId, scheduledAt, status])
+}
+
+model StoredFile {
+  id            String             @id @default(uuid())
+  workspaceId   String
+  leadId        String?
+  surveyId      String?
+  proposalId    String?
+  projectId     String?
+  requirementId String?
+  originalName  String
+  storageKey    String
+  mimeType      String
+  size          Int
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead          Lead?              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  survey        RequirementSurvey? @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  proposal      Proposal?          @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  project       Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirement   Requirement?       @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  createdAt     DateTime           @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  workspaceId String
+  userId      String
+  title       String
+  message     String
+  readAt      DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  workspaceId String
+  userId      String?
+  entityType  String
+  entityId    String
+  action      String
+  before      Json?
+  after       Json?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  lead        Lead?     @relation(fields: [leadId], references: [id])
+  leadId      String?
+  proposal    Proposal? @relation(fields: [proposalId], references: [id])
+  proposalId  String?
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+}
+
+model WorkspaceSettings {
+  id          String    @id @default(uuid())
+  workspaceId String    @unique
+  company     Json?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  updatedAt   DateTime  @updatedAt
+}
+
+model LeadSource {
+  id          String    @id @default(uuid())
+  workspaceId String
+  name        String
+  active      Boolean   @default(true)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+}

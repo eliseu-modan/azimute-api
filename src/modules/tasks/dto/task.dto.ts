@@ -1,0 +1,5 @@
+import { Type } from 'class-transformer';
+import { IsDate, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { TaskPriority, TaskStatus } from '@prisma/client';
+export class CreateTaskDto { @IsString() title!: string; @IsOptional() @IsString() projectId?: string; @IsOptional() @IsString() requirementId?: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsString() assigneeId?: string; @IsOptional() @IsEnum(TaskPriority) priority?: TaskPriority; @IsOptional() @IsEnum(TaskStatus) status?: TaskStatus; @IsOptional() @Type(() => Date) @IsDate() dueAt?: Date; @IsOptional() @IsNumber() estimatedHours?: number; @IsOptional() @IsNumber() actualHours?: number; }
+export class UpdateTaskDto { @IsOptional() @IsString() title?: string; @IsOptional() @IsString() description?: string; @IsOptional() @IsString() assigneeId?: string; @IsOptional() @IsEnum(TaskPriority) priority?: TaskPriority; @IsOptional() @IsEnum(TaskStatus) status?: TaskStatus; @IsOptional() @Type(() => Date) @IsDate() dueAt?: Date; @IsOptional() @IsNumber() estimatedHours?: number; @IsOptional() @IsNumber() actualHours?: number; }
