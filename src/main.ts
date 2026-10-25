@@ -16,7 +16,7 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(new ApiExceptionFilter());
-  const frontendUrl = process.env.FRONTEND_URL;
+  const frontendUrl = 'https://azimute-crm.vercel.app';
   if (frontendUrl)
     app.enableCors({
       origin: frontendUrl,
